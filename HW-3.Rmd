@@ -1,6 +1,6 @@
 ---
 title: "MATH 216 Homework 3"
-author: "WRITE YOUR NAME HERE"
+author: "Andrew Holtz"
 output: html_document
 ---
 
@@ -9,6 +9,11 @@ suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(lubridate))
 suppressPackageStartupMessages(library(Quandl))
+suppressPackageStartupMessages(library(caret))
+suppressPackageStartupMessages(library(pander))
+suppressPackageStartupMessages(library(knitr))
+suppressPackageStartupMessages(library(plotly))
+
 ```
 
 
@@ -16,10 +21,12 @@ suppressPackageStartupMessages(library(Quandl))
 
 Please indicate
 
-* Who you collaborated with:
-* Roughly how much time you spent on this HW:
-* What gave you the most trouble:
-* Any comments you have: 
+* Who you collaborated with: Ali Cook
+* Roughly how much time you spent on this HW: 6 Hours
+* What gave you the most trouble: My logistic regression does not make much 
+sense. It is somehow worse than if profiles were chosen at random for gender
+* Any comments you have: I do not know how to do 1)d. I'm surprised by
+how active the Reed College pool hall jukebox is even during the summer. 
 
 
 ## Data
@@ -35,9 +42,9 @@ profiles <- read.csv("data/profiles.csv", header=TRUE) %>%
   tbl_df()
 jukebox <- read.csv("data/jukebox.csv", header=TRUE) %>% 
   tbl_df()
+bitcoin <- Quandl("BAVERAGE/USD") %>% tbl_df()
+gold <- Quandl("WGC/GOLD_DAILY_USD") %>% tbl_df()
 ```
-
-
 
 
 
@@ -54,6 +61,57 @@ predict individual's gender and interpret your results.
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
 
+find.query <- function(char.vector, query){
+  which.has.query <- grep(query, char.vector, ignore.case = TRUE)
+  length(which.has.query) != 0
+}
+profile.has.query <- function(data.frame, query){
+  query <- tolower(query)
+  has.query <- apply(data.frame, 1, find.query, query=query)
+  return(has.query)
+}
+
+#Binary scale for male or female
+gender <- profiles %>% select(sex, orientation, income, job, height, pets, diet) %>% 
+  mutate(is.female = ifelse(sex=="f", 1, 0)) %>% 
+  mutate(is.bisexual = ifelse(orientation == "bisexual", 1, 0))
+
+orientation <- gender %>% select(orientation, orientation, sex, is.female, height, is.bisexual) 
+
+
+# #orientation2 <-group_by(orientation, orientation, sex) %>% tally() 
+# 
+# #See relationship of orientation to gender
+# #plot1 <- ggplot(orientation2, aes(x = sex, y = n, fill = orientation)) +
+#   geom_bar(stat = "identity", position = "fill") +
+#   labs(title = "Sexual Orientation of Bay Area OKCupid Users by Gender",
+#                 x = "Gender", y = "% of Users")
+# plot1
+# #Here you can see more women than men are "bisexual", while more men than women 
+# #identify as "gay". "Straight" observation is split almost 50/50. 
+# 
+# plot2 <- ggplot(orientation, aes(x = sex, y = height)) +
+#   geom_boxplot(width=0.3)
+#   #labs(title = "Sexual Orientation of Bay Area OKCupid Users by Gender",
+#                 #x = "Gender", y = "% of Users")
+# plot2
+# From this boxplot, you can see that males are taller than females.
+
+summary(orientation)
+
+# See relationship of both height and sexuality to gender. 
+plot3 <- ggplot(data=orientation, aes(x=orientation, y=height, col=sex)) + 
+  geom_jitter(width=0.2, height=0.5, alpha = 0.5, size = 0.4) + 
+  xlab("Sexuality") + ylab("Height") +
+  scale_color_discrete(name = "Gender")
+plot3
+
+#Fit logistical regression model
+#Question, where did orientationbisexual go?
+gender.fit = glm(is.female ~ is.bisexual + height, data=orientation, family=binomial)
+kable(summary(gender.fit)$coef,digits=3)
+
+
 ```
 
 
@@ -63,6 +121,14 @@ Plot a histogram of the fitted probabilities $\widehat{p}_i$ for all users $i=1,
 \ldots, n=59946$ in your dataset.
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
+
+p_hat <- predict(gender.fit, orientation, type="response") %>% round(3)
+
+ggplot(data = NULL, aes(x=p_hat)) + 
+  geom_histogram(binwidth = 0.2, colour = "#FFEB9A", fill = "#B59926") +
+  geom_vline(xintercept = 0.5, size = 1, colour = "#1A065B") +
+  labs(title = "Histogram of fitted probabilities", x ="p̂", y ="# of Users on OK Cupid") 
+
 
 ```
 
@@ -81,8 +147,18 @@ your table should be $n=59946$. Comment on how well our predictions fared.
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
 
+gender.prob = predict(gender.fit, orientation, type="response")
+gender.pred = rep(1, dim(orientation)[1])
+gender.pred[gender.prob > 0.5] = 0
+
+twobytwo <- table(gender.pred, orientation$is.female)
+sum(twobytwo)  
+kable(twobytwo)
+
+
 ```
 
+I still do not think the linear regression worked correctly. As it currently stands, this model is a horrible predictor. It is more wrong than it is right. 
 
 ### d)
 
@@ -111,9 +187,23 @@ What seasonal (i.e. cyclical) patterns do you observe?
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
 
+week_year <- select(jukebox, date_time, track, artist)
+
+week_year <- week_year %>% mutate(date = parse_date_time(date_time, "%b %d %H%M%S %y" ))  %>% mutate(week= week(date)) %>% mutate(year=year(date))
+
+songs <- week_year %>% group_by(year,week) %>% tally()
+songs$date <-as.Date(paste(songs$year, songs$week, 1, sep="-"), "%Y-%U-%u")
+
+plot4 <- ggplot(songs, aes(x = date, y = n)) + geom_area(size= 1, fill = "#4F628E") +labs(title = "Number of songs played each week for 6 consecutive years", x = "Date", y = "Number of songs played") 
+ggplotly()
+
+
 ```
-
-
+You can see from the plot that there are two distinct times of the year when 
+there is a drop in songs played. The broader valley is summer and the very 
+narrow but deep dip is winter break. The spring seems to have a downward trend. 
+The closer to the end of the semester (closer to summer) the fewer songs are 
+played. A closer look by making seasonal intervals could tell me more information. 
 
 
 
@@ -127,10 +217,26 @@ shift" during the academic year? Define
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
 
+week_year <- week_year %>% mutate(hour = hour(date)) %>% mutate(month= month(date))
+academic_year <- c(1,2,3,4,5,9,10,11,12)
+graveyard_shift <- c(12,1,2,3,4,5,6,7,8)
+
+gy <- select(week_year, artist, track, month, hour)
+gy <- gy %>% filter(month %in% academic_year) %>% 
+  filter(hour %in% graveyard_shift) %>%
+  group_by(artist) %>% tally() %>% arrange(desc(n)) %>% top_n(10)
+
+
+
+top10 <- ggplot(data = gy, aes(x = artist, y = n)) +
+  geom_bar(stat = "identity", fill = "#807A15") + 
+  coord_flip() + 
+  labs(title = "Top 10 Artists during Academic year graveyard shift", 
+       x = "Number of times played", y = "Artist")
+
+ggplotly()
+
 ```
-
-
-
 
 
 ## Question 4:
@@ -145,6 +251,25 @@ Let the reference currency be US dollars. Analyze these results and provide
 insight to a foreign currency exchanger.
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
+
+bitcoin
+
+bitcoin <- rename(bitcoin, Avg = `24h Average`, Total.Volume = `Total Volume`)
+
+bitgold <- left_join(bitcoin, gold, by = "Date")
+
+ggplot(data = bitgold, aes(x = Date)) +
+  geom_line(aes(x = Date, y = Avg), colour = "#075189") +
+  geom_line(aes(x = Date, y = Value), colour = "#D5B000") +
+  labs(title = "Average Price of Gold and Bitcoin by Date", x = "Date",
+       y = "Avg. Price (USD)")
+
+bitcoin_diff <- diff(bitgold$Avg)
+gold_diff <- diff(bitgold$Value)
+
+pander(summary(bitcoin_diff))
+pander(summary(gold_diff))
+
 
 ```
 
