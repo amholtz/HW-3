@@ -13,6 +13,8 @@ suppressPackageStartupMessages(library(caret))
 suppressPackageStartupMessages(library(pander))
 suppressPackageStartupMessages(library(knitr))
 suppressPackageStartupMessages(library(plotly))
+suppressPackageStartupMessages(library(RColorBrewer))
+suppressPackageStartupMessages(library(tidyr))
 
 ```
 
@@ -22,7 +24,7 @@ suppressPackageStartupMessages(library(plotly))
 Please indicate
 
 * Who you collaborated with: Ali Cook
-* Roughly how much time you spent on this HW: 6 Hours
+* Roughly how much time you spent on this HW: 12 Hours
 * What gave you the most trouble: My logistic regression does not make much 
 sense. It is somehow worse than if profiles were chosen at random for gender
 * Any comments you have: I do not know how to do 1)d. I'm surprised by
@@ -42,8 +44,7 @@ profiles <- read.csv("data/profiles.csv", header=TRUE) %>%
   tbl_df()
 jukebox <- read.csv("data/jukebox.csv", header=TRUE) %>% 
   tbl_df()
-bitcoin <- Quandl("BAVERAGE/USD") %>% tbl_df()
-gold <- Quandl("WGC/GOLD_DAILY_USD") %>% tbl_df()
+
 ```
 
 
@@ -76,44 +77,80 @@ gender <- profiles %>% select(sex, orientation, income, job, height, pets, diet)
   mutate(is.female = ifelse(sex=="f", 1, 0)) %>% 
   mutate(is.bisexual = ifelse(orientation == "bisexual", 1, 0))
 
-orientation <- gender %>% select(orientation, orientation, sex, is.female, height, is.bisexual) 
+sexuality <- gender %>% select(orientation, sex, is.female, height, is.bisexual) 
 
+sexuality %>% 
+  group_by(orientation) %>% 
+  summarise(prop_female=mean(is.female)) %>% 
+  kable(digits = 3)
 
-# #orientation2 <-group_by(orientation, orientation, sex) %>% tally() 
-# 
-# #See relationship of orientation to gender
-# #plot1 <- ggplot(orientation2, aes(x = sex, y = n, fill = orientation)) +
-#   geom_bar(stat = "identity", position = "fill") +
-#   labs(title = "Sexual Orientation of Bay Area OKCupid Users by Gender",
-#                 x = "Gender", y = "% of Users")
-# plot1
-# #Here you can see more women than men are "bisexual", while more men than women 
-# #identify as "gay". "Straight" observation is split almost 50/50. 
-# 
-# plot2 <- ggplot(orientation, aes(x = sex, y = height)) +
-#   geom_boxplot(width=0.3)
-#   #labs(title = "Sexual Orientation of Bay Area OKCupid Users by Gender",
-#                 #x = "Gender", y = "% of Users")
-# plot2
-# From this boxplot, you can see that males are taller than females.
+orient_tally <- sexuality %>% group_by(sex, orientation) %>% tally()
 
-summary(orientation)
-
-# See relationship of both height and sexuality to gender. 
-plot3 <- ggplot(data=orientation, aes(x=orientation, y=height, col=sex)) + 
-  geom_jitter(width=0.2, height=0.5, alpha = 0.5, size = 0.4) + 
-  xlab("Sexuality") + ylab("Height") +
-  scale_color_discrete(name = "Gender")
+plot3 <- ggplot(data=orient_tally, aes(x=orientation, y= n, fill = sex)) + 
+  geom_bar(stat = "identity", position = "fill") + 
+  xlab("Sexuality") + ylab("Proportion of Sexual Orientation") +
+  scale_fill_brewer(palette = "Set1") 
 plot3
 
-#Fit logistical regression model
-#Question, where did orientationbisexual go?
-gender.fit = glm(is.female ~ is.bisexual + height, data=orientation, family=binomial)
-kable(summary(gender.fit)$coef,digits=3)
+#Here you can see that more women define themselves on OKCUpid as bisexual
+#than men.There are more men on OKCupid who define themselves 
+# as 'gay'. It is important to note that there are more men on OKCupid. 
 
+# See relationship of both height and sexuality to gender. 
+plot4 <- ggplot(data=sexuality, aes(x=orientation, y=height, col=sex)) + 
+  geom_jitter(width=0.2, height=0.5, alpha = 0.5, size = 0.4) + 
+  xlab("Sexuality") + ylab("Height") +
+  scale_color_discrete(name = "Gender") 
+plot4
+
+# I use geom_jitter because I want the viewer to see two main properties of
+# the data set. 1.) You can see that men are taller than women. and 2.) You
+# you can see that there are more women who define themselves as bisexual
+# and more men that define themselves as gay. The distribution is almost equal
+# for straight. 
+
+#Fit logistical regression model
+
+
+#This set "straight" as the reference observation
+sexuality <- within(sexuality, orientation <- relevel(orientation, ref = "straight"))
+
+gender.fit = glm(is.female ~ orientation + height, data=sexuality, family=binomial)
+
+kable(summary(gender.fit)$coef,digits=6)
+
+# I can't figure this out. 
+b <- coefficients(gender.fit)
+b
+
+f0 <- 1/(1+exp(-(b[1] + 0*b[2] + 0*b[3])))
+f0 %>% round(6)
+
+f1 <- 1/(1+exp(-(b[1] + 1*b[2] + 1*b[3])))
+f1 %>% round(6)
+
+#These beta values are wrong. I need to get help
+
+p1 <- ggplot(data=sexuality, aes(x=orientation, y=is.female)) + 
+   xlab("is.bisexual") + ylab("Gender: 1= Female, 0 = Male")
+ p1 +
+   geom_jitter(width=0.5, height=0.5, alpha=0.1)+
+   geom_hline(yintercept=f0, col="red", size=2)+
+   geom_hline(yintercept=f1, col="blue", size=2)
 
 ```
 
+This model attempts to show the relationship between gender, height and sexual
+orientation. The idea is that for every change gender there is a change in
+height and sexual orientation(specifically bisexuality and gay). From
+the regression out put, one can see a positive relationship of bisexuality
+to is.female. This means that for every 1 unit increase of is.female, there 
+is a 1.382 unit increase in bisexuality. This is the opposite for gay and 
+straight. Every 1 unit increase of is.female results in a 0.678 decrease
+in gay, which means this is a negative relationship. Height and gender also
+have a negative relationship. Every 1 unit increase of is.female results in a 
+0.638 unit decrease in height. Once I figure out the beta values, I will be 
+able to speak more critically about this model. 
 
 ### b)
 
@@ -122,16 +159,16 @@ Plot a histogram of the fitted probabilities $\widehat{p}_i$ for all users $i=1,
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
 
-p_hat <- predict(gender.fit, orientation, type="response") %>% round(3)
+p_hat <- predict(gender.fit, sexuality, type="response") %>% round(3)
 
 ggplot(data = NULL, aes(x=p_hat)) + 
   geom_histogram(binwidth = 0.2, colour = "#FFEB9A", fill = "#B59926") +
   geom_vline(xintercept = 0.5, size = 1, colour = "#1A065B") +
   labs(title = "Histogram of fitted probabilities", x ="p̂", y ="# of Users on OK Cupid") 
 
-
 ```
-
+Above is a histogram showing the distribution of  fitted probabilities $\widehat{p}_i$ for OKCupid users. $\widehat{p}_i$ of 0.00 is the most 
+frequent. 
 
 ### c)
 
@@ -147,18 +184,24 @@ your table should be $n=59946$. Comment on how well our predictions fared.
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
 
-gender.prob = predict(gender.fit, orientation, type="response")
-gender.pred = rep(1, dim(orientation)[1])
-gender.pred[gender.prob > 0.5] = 0
+gender.prob = predict(gender.fit, sexuality, type="response")
+gender.pred = rep(0, dim(sexuality)[1])
+gender.pred[gender.prob > 0.5] = 1
 
-twobytwo <- table(gender.pred, orientation$is.female)
-sum(twobytwo)  
-kable(twobytwo)
+colnames <- c("Predicted Male", "Predicted Female")
+twobytwo <- table(gender.pred, sexuality$is.female)
+colnames2 <- c("% Male Predicted", "% Female Predicted")
+prop_correct <- prop.table(twobytwo,2)
 
+kable(twobytwo, col.names = colnames, digits = 3 )
+kable((prop_correct)*100, col.names = colnames2, digits = 2)
 
 ```
 
-I still do not think the linear regression worked correctly. As it currently stands, this model is a horrible predictor. It is more wrong than it is right. 
+This model worked very well. As you can see from the 2x2 table, the model 
+predicted correctly 85.2% of the time for male and 81.2% of the time for 
+females. The error rate for predicting males was 14.81% and the error rate
+for predicted females was 18.8. 
 
 ### d)
 
@@ -219,14 +262,22 @@ shift" during the academic year? Define
 
 week_year <- week_year %>% mutate(hour = hour(date)) %>% mutate(month= month(date))
 academic_year <- c(1,2,3,4,5,9,10,11,12)
-graveyard_shift <- c(12,1,2,3,4,5,6,7,8)
+graveyard_shift <- c(0,1,2,3,4,5,6,7,8)
 
+#look at just the grave_yard shift
 gy <- select(week_year, artist, track, month, hour)
 gy <- gy %>% filter(month %in% academic_year) %>% 
   filter(hour %in% graveyard_shift) %>%
-  group_by(artist) %>% tally() %>% arrange(desc(n)) %>% top_n(10)
+  group_by(artist) %>% tally() %>% top_n(10) %>% arrange((n))
+
+#Look at all times of the day
+all <- select(week_year, artist, track, month, hour)
+all <- all %>% filter(month %in% academic_year) %>% 
+  group_by(artist) %>% tally() %>% top_n(10) %>% arrange((n))
 
 
+gy$artist <- factor(gy$artist, levels = 
+                      gy$artist[order(-gy$n)])
 
 top10 <- ggplot(data = gy, aes(x = artist, y = n)) +
   geom_bar(stat = "identity", fill = "#807A15") + 
@@ -236,8 +287,26 @@ top10 <- ggplot(data = gy, aes(x = artist, y = n)) +
 
 ggplotly()
 
-```
+all$artist <- factor(all$artist, levels = 
+                      all$artist[order(-all$n)])
 
+top10_non <- ggplot(data = all, aes(x = artist, y = n)) +
+  geom_bar(stat = "identity", fill = "#807A15") + 
+  coord_flip() + 
+  labs(title = "Top 10 Artists during Academic year", 
+       x = "Number of times played", y = "Artist")
+
+ggplotly()
+
+
+
+
+```
+From the bar plot above, one can see that OutKast is played the most 
+during the aademic year of the graveyard shift. Talking Heads is played the least. It is interesting how the majority of these music groups are Rock and
+Roll. Reed College must not like 'mainstream' music played during wee hours of the night. Comparing the graveyard shift's most popular tracks to all hours
+of the day, you can see that there isn't much variation. Perhaps this means the
+music is actually on some sort of loop. The only difference in most popular
 
 ## Question 4:
 
@@ -252,7 +321,8 @@ insight to a foreign currency exchanger.
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
 
-bitcoin
+bitcoin <- Quandl("BAVERAGE/USD") %>% tbl_df()
+gold <- Quandl("WGC/GOLD_DAILY_USD") %>% tbl_df()
 
 bitcoin <- rename(bitcoin, Avg = `24h Average`, Total.Volume = `Total Volume`)
 
@@ -264,16 +334,51 @@ ggplot(data = bitgold, aes(x = Date)) +
   labs(title = "Average Price of Gold and Bitcoin by Date", x = "Date",
        y = "Avg. Price (USD)")
 
-bitcoin_diff <- diff(bitgold$Avg)
-gold_diff <- diff(bitgold$Value)
 
-pander(summary(bitcoin_diff))
-pander(summary(gold_diff))
+#remove bitcoin and gold data pre 2013. Since it will
+date_range <- interval(ymd(20130101), ymd(20150601))
+bitgold2013 <- bitgold %>% 
+  filter(Date %within% date_range)
+
+#I tried really hard to put all the standard deviations in table. But I failed.
+#bitcoin_diff <- diff(bitgold$Avg)
+#gold_diff <- diff(bitgold$Value)
+#"Standard Deviation of bitcoin_diff +"
+#sd(bitcoin_diff) 
+#"Standard Deviation of gold_diff +"
+#sd(gold_diff, na.rm = TRUE)
+
+bitcoin_diff2013 <- diff(bitgold2013$Avg)
+gold_diff2013 <- diff(bitgold2013$Value)
+"Standard Deviation of bitcoin_diff (>2013)+"
+sd(bitcoin_diff2013)
+"Standard Deviation of gold_diff (>2013) +"
+sd(gold_diff2013, na.rm = TRUE)
+
+pander(summary(bitcoin_diff2013))
+pander(summary(gold_diff2013))
+
+#pander(summary(bitcoin_diff))
+#pander(summary(gold_diff))
 
 
 ```
-
-
+From the chart produced above you can see that gold consistantly has more value
+than bitcoin. In addition, it is visually apparent that gold is more temperate 
+than bitcoin. If you look at the range for both gold and bitcoin, you will see
+that bitcoin has a larger range, meaning that the largest change in one day was
++367.6 and -146.6. The largest change in gold was -77.2 and +106. These are 
+much different. If you look at just values from 2013 to present, you can see 
+that there is much more devitation, variablilty, in Bitcoin than in Gold. You
+can see this on the chart as well. The standard deviation for bitcoin from
+2013 to present day is 26.4, while the standard deviation for gold is 13.8.
+One could now say that bitcoin is more variable and volatile than gold. It is
+important to mention that gold changes prices less often, since the price
+of gold does not change on weekends. The price of Bitcoins does change over the
+weekend. If I were given advice to a foreign currency exchanger, I would let 
+him/her know that there might be greatest return in bitcoin, but it is much
+more volatile than gold. If you want to be safe, stick with gold. It has
+consistently gone up since 2010, while bitcoin has been extremly variable.  
 
 
 
