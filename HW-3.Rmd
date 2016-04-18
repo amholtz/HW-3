@@ -27,7 +27,7 @@ Please indicate
 * Roughly how much time you spent on this HW: 12 Hours
 * What gave you the most trouble: My logistic regression does not make much 
 sense. It is somehow worse than if profiles were chosen at random for gender
-* Any comments you have: I do not know how to do 1)d. I'm surprised by
+* Any comments you have: I'm surprised by
 how active the Reed College pool hall jukebox is even during the summer. 
 
 
@@ -73,24 +73,24 @@ profile.has.query <- function(data.frame, query){
 }
 
 #Binary scale for male or female
-gender <- profiles %>% select(sex, orientation, income, job, height, pets, diet) %>% 
+gender <- profiles %>%
+  select(sex, orientation, income, job, height, pets, diet) %>% 
   mutate(is.female = ifelse(sex=="f", 1, 0)) %>% 
   mutate(is.bisexual = ifelse(orientation == "bisexual", 1, 0))
 
 sexuality <- gender %>% select(orientation, sex, is.female, height, is.bisexual) 
 
-sexuality %>% 
-  group_by(orientation) %>% 
-  summarise(prop_female=mean(is.female)) %>% 
-  kable(digits = 3)
-
-orient_tally <- sexuality %>% group_by(sex, orientation) %>% tally()
+orient_tally <- sexuality %>% 
+  group_by(sex, orientation) %>%
+  tally()
 
 plot3 <- ggplot(data=orient_tally, aes(x=orientation, y= n, fill = sex)) + 
   geom_bar(stat = "identity", position = "fill") + 
-  xlab("Sexuality") + ylab("Proportion of Sexual Orientation") +
+  labs(title = "Proportion of Sexual Orientation by Gender", 
+       x = "Sexuality",  y ="Proportion of Sexual Orientation") +
   scale_fill_brewer(palette = "Set1") 
 plot3
+
 
 #Here you can see that more women define themselves on OKCUpid as bisexual
 #than men.There are more men on OKCupid who define themselves 
@@ -98,8 +98,9 @@ plot3
 
 # See relationship of both height and sexuality to gender. 
 plot4 <- ggplot(data=sexuality, aes(x=orientation, y=height, col=sex)) + 
-  geom_jitter(width=0.2, height=0.5, alpha = 0.5, size = 0.4) + 
-  xlab("Sexuality") + ylab("Height") +
+  geom_jitter(width=0.2, height=0.5, alpha = 0.25, size = 0.4) + 
+  labs(title = "Distribution of both height and sexual orientation by gender", 
+       x = "Sexuality", y = "Height (cm)") + 
   scale_color_discrete(name = "Gender") 
 plot4
 
@@ -113,44 +114,44 @@ plot4
 
 
 #This set "straight" as the reference observation
-sexuality <- within(sexuality, orientation <- relevel(orientation, ref = "straight"))
+sexuality <- within(sexuality, orientation 
+                    <- relevel(orientation, ref = "straight"))
 
 gender.fit = glm(is.female ~ orientation + height, data=sexuality, family=binomial)
 
-kable(summary(gender.fit)$coef,digits=6)
+kable(summary(gender.fit)$coef,digits=2)
 
 # I can't figure this out. 
 b <- coefficients(gender.fit)
-b
 
-f0 <- 1/(1+exp(-(b[1] + 0*b[2] + 0*b[3])))
-f0 %>% round(6)
+exp_b = exp(b[2:4])
+pander(exp_b)
 
-f1 <- 1/(1+exp(-(b[1] + 1*b[2] + 1*b[3])))
-f1 %>% round(6)
-
-#These beta values are wrong. I need to get help
-
-p1 <- ggplot(data=sexuality, aes(x=orientation, y=is.female)) + 
-   xlab("is.bisexual") + ylab("Gender: 1= Female, 0 = Male")
- p1 +
-   geom_jitter(width=0.5, height=0.5, alpha=0.1)+
-   geom_hline(yintercept=f0, col="red", size=2)+
-   geom_hline(yintercept=f1, col="blue", size=2)
+# This means that if there are any individuals that are bisexual, there is a 3.98
+# times higher chance that the individual is female. On the contrary, orientationgay
+# and height are more correlated to male. 
 
 ```
 
 This model attempts to show the relationship between gender, height and sexual
-orientation. The idea is that for every change gender there is a change in
-height and sexual orientation(specifically bisexuality and gay). From
-the regression out put, one can see a positive relationship of bisexuality
-to is.female. This means that for every 1 unit increase of is.female, there 
-is a 1.382 unit increase in bisexuality. This is the opposite for gay and 
-straight. Every 1 unit increase of is.female results in a 0.678 decrease
-in gay, which means this is a negative relationship. Height and gender also
-have a negative relationship. Every 1 unit increase of is.female results in a 
-0.638 unit decrease in height. Once I figure out the beta values, I will be 
-able to speak more critically about this model. 
+orientation. The idea is that for every change in height and sexual orientation
+(specifically bisexuality and gay) there is a change in the odds of being
+female. From the regression output, one can see a positive relationship of
+bisexuality to the odds of being female. This means that for every 1.382 unit
+increase in bisexuality there is a one unit increase in the odds of being
+female. This is the opposite for gay and straight. Every 0.678 decrease in gay
+results in a 1 unit increase in odds of being female, which means that
+increases in gay result in decrease in odds female (negative relationship).
+Height and gender also have a negative relationship. A 0.638 unit decrease in
+height results in a 1 unit increase in the odds of being female. The exponential
+of these coeficients show the increase or decrease in odds for each descripter to gender. For example, if the user is bisexual there is a 3.98 multiplicative
+fold increase in the odds of the user being female. On the contrary, if the user
+is gay, the odds of the user being female are reduced multiplicatively by 0.507.
+This also means that 1/0.507, which is equal to 1.97, is the fold increase of 
+the odds that the user is male. A one unit increase in height corresponds to 
+a multiplicative increase of 0.5281 in the odds of the user being female. In
+other words, there is a multiplicative increase of 1.89 in the odds of the user
+being male for every one unit increase in height. 
 
 ### b)
 
@@ -159,7 +160,8 @@ Plot a histogram of the fitted probabilities $\widehat{p}_i$ for all users $i=1,
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
 
-p_hat <- predict(gender.fit, sexuality, type="response") %>% round(3)
+p_hat <- predict(gender.fit, sexuality, type="response") %>% 
+  round(3)
 
 ggplot(data = NULL, aes(x=p_hat)) + 
   geom_histogram(binwidth = 0.2, colour = "#FFEB9A", fill = "#B59926") +
@@ -167,8 +169,10 @@ ggplot(data = NULL, aes(x=p_hat)) +
   labs(title = "Histogram of fitted probabilities", x ="p̂", y ="# of Users on OK Cupid") 
 
 ```
-Above is a histogram showing the distribution of  fitted probabilities $\widehat{p}_i$ for OKCupid users. $\widehat{p}_i$ of 0.00 is the most 
-frequent. 
+Above is a histogram showing the distribution of fitted probabilities 
+$\widehat{p}_i$ for OKCupid users. Each bin on the x-axis represents ranges of 
+fitted probabilities. $\widehat{p}_i$ of 0.00 to 0.02 is the most 
+frequent range of $\widehat{p}_i$
 
 ### c)
 
@@ -188,13 +192,15 @@ gender.prob = predict(gender.fit, sexuality, type="response")
 gender.pred = rep(0, dim(sexuality)[1])
 gender.pred[gender.prob > 0.5] = 1
 
-colnames <- c("Predicted Male", "Predicted Female")
+colnames <- c("Observed Male", "Observed Female")
 twobytwo <- table(gender.pred, sexuality$is.female)
-colnames2 <- c("% Male Predicted", "% Female Predicted")
-prop_correct <- prop.table(twobytwo,2)
-
+rownames(twobytwo) <- c("Predicted Male","Predicted Female")
 kable(twobytwo, col.names = colnames, digits = 3 )
-kable((prop_correct)*100, col.names = colnames2, digits = 2)
+
+#Proportions
+rownames(twobytwo) <- c("% Predicted Male","% Predicted Female")
+prop_correct <- prop.table(twobytwo,2)
+kable((prop_correct)*100, col.names = colnames, digits = 2)
 
 ```
 
@@ -232,12 +238,22 @@ What seasonal (i.e. cyclical) patterns do you observe?
 
 week_year <- select(jukebox, date_time, track, artist)
 
-week_year <- week_year %>% mutate(date = parse_date_time(date_time, "%b %d %H%M%S %y" ))  %>% mutate(week= week(date)) %>% mutate(year=year(date))
+week_year <- week_year %>% 
+  mutate(date = parse_date_time(date_time, "%b %d %H%M%S %y" ))  %>%
+  mutate(week= week(date)) %>% 
+  mutate(year=year(date))
 
-songs <- week_year %>% group_by(year,week) %>% tally()
+songs <- week_year %>% 
+  group_by(year,week) %>% 
+  tally()
+
 songs$date <-as.Date(paste(songs$year, songs$week, 1, sep="-"), "%Y-%U-%u")
 
-plot4 <- ggplot(songs, aes(x = date, y = n)) + geom_area(size= 1, fill = "#4F628E") +labs(title = "Number of songs played each week for 6 consecutive years", x = "Date", y = "Number of songs played") 
+plot4 <- ggplot(songs, aes(x = date, y = n)) + 
+  geom_area(size= 1, fill = "#4F628E") +
+  labs(title = "Number of songs played each week for 6 consecutive years", 
+       x = "Date", y = "Number of songs played")
+
 ggplotly()
 
 
@@ -246,7 +262,7 @@ You can see from the plot that there are two distinct times of the year when
 there is a drop in songs played. The broader valley is summer and the very 
 narrow but deep dip is winter break. The spring seems to have a downward trend. 
 The closer to the end of the semester (closer to summer) the fewer songs are 
-played. A closer look by making seasonal intervals could tell me more information. 
+played. 
 
 
 
@@ -266,19 +282,30 @@ graveyard_shift <- c(0,1,2,3,4,5,6,7,8)
 
 #look at just the grave_yard shift
 gy <- select(week_year, artist, track, month, hour)
-gy <- gy %>% filter(month %in% academic_year) %>% 
+
+gy <- gy %>% 
+  filter(month %in% academic_year) %>% 
   filter(hour %in% graveyard_shift) %>%
-  group_by(artist) %>% tally() %>% top_n(10) %>% arrange((n))
+  group_by(artist) %>% 
+  tally() %>% 
+  top_n(10) %>% 
+  arrange((n))
 
 #Look at all times of the day
 all <- select(week_year, artist, track, month, hour)
-all <- all %>% filter(month %in% academic_year) %>% 
-  group_by(artist) %>% tally() %>% top_n(10) %>% arrange((n))
+
+all <- all %>% 
+  filter(month %in% academic_year) %>% 
+  group_by(artist) %>% 
+  tally() %>% 
+  top_n(10) %>% 
+  arrange((n))
 
 
 gy$artist <- factor(gy$artist, levels = 
                       gy$artist[order(-gy$n)])
 
+#Plot for artists played during the graveyard shift
 top10 <- ggplot(data = gy, aes(x = artist, y = n)) +
   geom_bar(stat = "identity", fill = "#807A15") + 
   coord_flip() + 
@@ -290,6 +317,7 @@ ggplotly()
 all$artist <- factor(all$artist, levels = 
                       all$artist[order(-all$n)])
 
+#Plot for all times of the day. 
 top10_non <- ggplot(data = all, aes(x = artist, y = n)) +
   geom_bar(stat = "identity", fill = "#807A15") + 
   coord_flip() + 
@@ -299,12 +327,12 @@ top10_non <- ggplot(data = all, aes(x = artist, y = n)) +
 ggplotly()
 
 
-
-
 ```
 From the bar plot above, one can see that OutKast is played the most 
-during the aademic year of the graveyard shift. Talking Heads is played the least. It is interesting how the majority of these music groups are Rock and
-Roll. Reed College must not like 'mainstream' music played during wee hours of the night. Comparing the graveyard shift's most popular tracks to all hours
+during the aademic year of the graveyard shift. Talking Heads is played the 
+least. It is interesting how the majority of these music groups are Rock and
+Roll. Reed College must not like 'mainstream' music played during wee hours of 
+the night. Comparing the graveyard shift's most popular tracks to all hours
 of the day, you can see that there isn't much variation. Perhaps this means the
 music is actually on some sort of loop. The only difference in most popular
 
@@ -324,61 +352,56 @@ insight to a foreign currency exchanger.
 bitcoin <- Quandl("BAVERAGE/USD") %>% tbl_df()
 gold <- Quandl("WGC/GOLD_DAILY_USD") %>% tbl_df()
 
-bitcoin <- rename(bitcoin, Avg = `24h Average`, Total.Volume = `Total Volume`)
+bitcoin <- rename(bitcoin, Avg_bit = `24h Average`, Total.Volume = `Total Volume`)
 
-bitgold <- left_join(bitcoin, gold, by = "Date")
+bitgold <- left_join(bitcoin, gold, by = "Date") %>% 
+  select(Date, Avg_bit, Value)
 
 ggplot(data = bitgold, aes(x = Date)) +
-  geom_line(aes(x = Date, y = Avg), colour = "#075189") +
+  geom_line(aes(x = Date, y = Avg_bit), colour = "#075189") +
   geom_line(aes(x = Date, y = Value), colour = "#D5B000") +
-  labs(title = "Average Price of Gold and Bitcoin by Date", x = "Date",
+  labs(title = "Plot #1: Average Price of Gold and Bitcoin by Date", x = "Date",
        y = "Avg. Price (USD)")
-
 
 #remove bitcoin and gold data pre 2013. Since it will
 date_range <- interval(ymd(20130101), ymd(20150601))
 bitgold2013 <- bitgold %>% 
-  filter(Date %within% date_range)
+  filter(Date %within% date_range) %>% 
+  arrange(Date)
 
-#I tried really hard to put all the standard deviations in table. But I failed.
-#bitcoin_diff <- diff(bitgold$Avg)
-#gold_diff <- diff(bitgold$Value)
-#"Standard Deviation of bitcoin_diff +"
-#sd(bitcoin_diff) 
-#"Standard Deviation of gold_diff +"
-#sd(gold_diff, na.rm = TRUE)
+bitgold2013 <- bitgold2013 %>% 
+  mutate(bit_delta = ((Avg_bit - lag(Avg_bit))/(lag(Avg_bit))))
+ 
+bitgold2013 <- bitgold2013 %>% 
+  mutate(gold_delta = ((Value - lag(Value))/(lag(Value))))
 
-bitcoin_diff2013 <- diff(bitgold2013$Avg)
-gold_diff2013 <- diff(bitgold2013$Value)
-"Standard Deviation of bitcoin_diff (>2013)+"
-sd(bitcoin_diff2013)
-"Standard Deviation of gold_diff (>2013) +"
-sd(gold_diff2013, na.rm = TRUE)
-
-pander(summary(bitcoin_diff2013))
-pander(summary(gold_diff2013))
-
-#pander(summary(bitcoin_diff))
-#pander(summary(gold_diff))
+chng <- ggplot(data = bitgold2013, aes(x = Date)) +
+  geom_line(aes(x = Date, y = bit_delta), colour = "#075189") +
+  geom_line(aes(x = Date, y = gold_delta), colour = "#D5B000", size = 1) +
+  labs(title = "Plot #2: Daily % Change of Gold and Bitcoin by Date", x = "Date",
+       y = "% Change")
+ggplotly()
+  
 
 
 ```
-From the chart produced above you can see that gold consistantly has more value
+From plot #1 produced above you can see that gold consistantly has more value
 than bitcoin. In addition, it is visually apparent that gold is more temperate 
-than bitcoin. If you look at the range for both gold and bitcoin, you will see
-that bitcoin has a larger range, meaning that the largest change in one day was
-+367.6 and -146.6. The largest change in gold was -77.2 and +106. These are 
-much different. If you look at just values from 2013 to present, you can see 
-that there is much more devitation, variablilty, in Bitcoin than in Gold. You
-can see this on the chart as well. The standard deviation for bitcoin from
-2013 to present day is 26.4, while the standard deviation for gold is 13.8.
-One could now say that bitcoin is more variable and volatile than gold. It is
-important to mention that gold changes prices less often, since the price
-of gold does not change on weekends. The price of Bitcoins does change over the
-weekend. If I were given advice to a foreign currency exchanger, I would let 
-him/her know that there might be greatest return in bitcoin, but it is much
-more volatile than gold. If you want to be safe, stick with gold. It has
-consistently gone up since 2010, while bitcoin has been extremly variable.  
+than bitcoin. Bitcoin has had an change of $1000 in the last 5 years, while gold
+has stayed between $1000 and $2000. Looking at plot #2 you can see the 
+volatility of the two graphs. The daily % change of gold and bitcoin, shows how
+strickingly different bitcoin and gold are when it comes to variabilies in 
+daily price changes. Relative to bitcoin, gold strattles 0% change. The highest
+daily % change for gold was 4.96% while the highest % change for bitcoin was
+29.8%. Therefore, you can come to the conclusion that bicoin is more volatile 
+than gold. It is important to mention that gold changes prices less often, since
+the price of gold does not change on weekends. The price of Bitcoins does change
+over the weekend. If I were given advice to a foreign currency exchanger, I 
+would let him/her know that they have the greatest chance to make a profit with 
+bitcoin, but it is much more volatile than gold. If you want to be safe, stick 
+with gold. It has consistently gone up since 2010, while bitcoin has been 
+extremly variable. A volatile stock, though, however more dangerous, also has
+the potential to make an exchanger more money, faster. 
 
 
 
